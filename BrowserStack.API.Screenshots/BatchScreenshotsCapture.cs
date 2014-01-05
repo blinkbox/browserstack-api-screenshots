@@ -23,11 +23,11 @@ namespace BrowserStack.API.Screenshots
     #endregion
 
     /// <summary>
-    /// Captures screenshots for multiple urls and in multiple browsers in one batch call.
+    /// Captures screenshots for multiple URLs and in multiple browsers in one batch call.
     /// </summary>
     /// <remarks>
     /// This class makes multiple calls to the BrowserStack screenshots API in order to
-    /// start the necessary jobs to capture all the combinations of urls and browsers. For each screenshot
+    /// start the necessary jobs to capture all the combinations of URLs and browsers. For each screenshot
     /// taken it saves the corresponding file to a local path.
     /// </remarks>
     public sealed class BatchScreenshotsCapture
@@ -186,7 +186,7 @@ namespace BrowserStack.API.Screenshots
         #region Public Methods
 
         /// <summary>
-        /// Starts the job asynchronously.
+        /// Executes a batch to capture screenshots from BrowserStack asynchronously.
         /// </summary>
         /// <param name="rootPath">The root path where to save the screenshots to.</param>
         /// <param name="usingTunnel">set to <c>true</c> if the BrowserStack jobs need to run under a tunnel. The tunnel must have been initiated externally.</param>
@@ -194,7 +194,7 @@ namespace BrowserStack.API.Screenshots
         /// <returns>
         /// A <see cref="Task" /> to await for completion.
         /// </returns>
-        public async Task StartJobAsync(string rootPath, bool usingTunnel, params BatchCaptureJobInfo[] batchCaptureJobs)
+        public async Task ExecuteBatchAsync(string rootPath, bool usingTunnel, params BatchCaptureJobInfo[] batchCaptureJobs)
         {
             if (string.IsNullOrEmpty(rootPath))
             {
