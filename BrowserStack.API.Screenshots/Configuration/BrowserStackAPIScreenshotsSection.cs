@@ -58,18 +58,18 @@ namespace BrowserStack.API.Screenshots.Configuration
         /// <summary>
         /// Gets or sets the tunnels.
         /// </summary>
-        [ConfigurationProperty("Tunnels", IsRequired = false)]
-        [ConfigurationCollection(typeof(TunnelsCollection), AddItemName = "Template")]
+        [ConfigurationProperty("Tunnel", IsRequired = false)]
+        [ConfigurationCollection(typeof(TunnelsCollection), AddItemName = "Host")]
         public TunnelsCollection Tunnels
         {
             get
             {
-                return base["Tunnels"] as TunnelsCollection;
+                return base["Tunnel"] as TunnelsCollection;
             }
 
             set
             {
-                this["Tunnels"] = value;
+                this["Tunnel"] = value;
             }
         }
 

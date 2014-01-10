@@ -169,7 +169,7 @@ namespace BrowserStack.API.Screenshots
                 throw new ConfigurationErrorsException("Please provide at least one host to set up the tunnel.");
             }
 
-            this.StartTunnel(config.Tunnels.Cast<TunnelElement>().Select(x => new TunnelUrlConfig() { Host = x.Host, Port = x.Port, IsSecure = x.IsSecure} ));
+            this.StartTunnel(config.Tunnels.Cast<HostElement>().Select(x => new TunnelUrlConfig() { Host = x.Name, Port = x.Port, IsSecure = x.IsSecure} ));
         }
 
         /// <summary>

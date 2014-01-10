@@ -67,7 +67,7 @@ namespace BrowserStack.API.Screenshots.Configuration
         {
             get
             {
-                return "Tunnel";
+                return "Host";
             }
         }
 
@@ -82,13 +82,13 @@ namespace BrowserStack.API.Screenshots.Configuration
         /// The index.
         /// </param>
         /// <returns>
-        /// The <see cref="TunnelElement"/>.
+        /// The <see cref="HostElement"/>.
         /// </returns>
-        public TunnelElement this[int index]
+        public HostElement this[int index]
         {
             get
             {
-                return (TunnelElement)this.BaseGet(index);
+                return (HostElement)this.BaseGet(index);
             }
 
             set
@@ -114,7 +114,7 @@ namespace BrowserStack.API.Screenshots.Configuration
         /// </returns>
         protected override ConfigurationElement CreateNewElement()
         {
-            return new TunnelElement();
+            return new HostElement();
         }
 
         /// <summary>
@@ -128,7 +128,7 @@ namespace BrowserStack.API.Screenshots.Configuration
         /// </returns>
         protected override object GetElementKey(ConfigurationElement element)
         {
-            return ((TunnelElement)element).Host;
+            return ((HostElement)element).Name;
         }
 
         #endregion
@@ -137,24 +137,24 @@ namespace BrowserStack.API.Screenshots.Configuration
     /// <summary>
     /// The tunnel element.
     /// </summary>
-    public class TunnelElement : ConfigurationElement
+    public class HostElement : ConfigurationElement
     {
         #region Public Properties
 
         /// <summary>
         /// Gets or sets the host.
         /// </summary>
-        [ConfigurationProperty("host", IsRequired = true)]
-        public string Host
+        [ConfigurationProperty("name", IsRequired = true)]
+        public string Name
         {
             get
             {
-                return this["host"].ToString();
+                return this["name"].ToString();
             }
 
             set
             {
-                this["host"] = value;
+                this["name"] = value;
             }
         }
 

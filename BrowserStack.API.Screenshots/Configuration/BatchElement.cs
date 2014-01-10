@@ -5,18 +5,18 @@
 
     public class BatchElement: ConfigurationElement
     {
-        [ConfigurationProperty("sessionLimit", DefaultValue = 4, IsRequired = false)]
+        [ConfigurationProperty("session-limit", DefaultValue = 4, IsRequired = false)]
         public int SessionLimit
         {
-            get { return Convert.ToInt32(this["sessionLimit"]); }
-            set { this["sessionLimit"] = value; }
+            get { return Convert.ToInt32(this["session-limit"]); }
+            set { this["session-limit"] = value; }
         }
 
-        [ConfigurationProperty("captureThumbnails", DefaultValue = false, IsRequired = false)]
+        [ConfigurationProperty("capture-thumbnails", DefaultValue = false, IsRequired = false)]
         public bool CaptureThumbnails
         {
-            get { return Convert.ToBoolean(this["captureThumbnails"]); }
-            set { this["captureThumbnails"] = value; }
+            get { return Convert.ToBoolean(this["capture-thumbnails"]); }
+            set { this["capture-thumbnails"] = value; }
         }
     }
 }
