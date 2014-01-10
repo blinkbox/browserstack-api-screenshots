@@ -4,6 +4,8 @@ This is a .NET client to BrowserStack's Screenshots REST API. You can see more a
 
 This class library includes two different components. A low level REST client for wrapping calls to BrowserStack's Screenshots API and a higher level component (that uses the lower level one) that performs batch screenshot capture jobs and saves the results in a local folder.
 
+Apart from the above, it includes a small wrapper class to run the command-line java tunnel provided by BrowserStack. See http://www.browserstack.com/local-testing#command-line. In order to use this class you need to have java installed and have downloaded the jar file.
+
 ## REST client usage
 
 To use the library, first you need to have an account at BrowserStack. Starting a screenshot capture job through the REST API requires *at least* a Team Plus subscription to the Screenshots + Responsive product, though for the rest of the calls a simple subscription is sufficient.
@@ -87,3 +89,7 @@ Running the above command will start as many BrowserStack screenshot jobs necess
 	* ...
 * ios
 	* ...
+	
+## Configuration
+
+The library can either be used through code only configuration, or it can read an application configuration file with a specific configuration section in it.
