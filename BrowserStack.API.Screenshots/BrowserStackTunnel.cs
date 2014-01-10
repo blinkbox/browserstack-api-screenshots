@@ -179,7 +179,11 @@ namespace BrowserStack.API.Screenshots
         {
             if (this.javaTunnel != null)
             {
-                this.javaTunnel.Kill();
+                if (!this.javaTunnel.HasExited)
+                {
+                    this.javaTunnel.Kill();
+                }
+
                 this.javaTunnel.Dispose();
                 this.javaTunnel = null;
             }
@@ -197,10 +201,10 @@ namespace BrowserStack.API.Screenshots
         {
             this.javaTunnel = new Process();
             this.javaTunnel.StartInfo.FileName = Path.Combine(this.javaCompilerPath, "java.exe");
-            this.javaTunnel.StartInfo.Arguments = string.Format("-jar \"{0}\" {1}", this.browserStackTunnelJarFile, this.browserStackKey);
+            this.javaTunnel.StartInfo.Arguments = string.Format("-jar \"{0}\" {1} ", this.browserStackTunnelJarFile, this.browserStackKey);
             foreach (var tunnelUrlConfig in hosts)
             {
-                this.javaTunnel.StartInfo.Arguments += string.Format(" {0},{1},{2}", tunnelUrlConfig.Host, tunnelUrlConfig.Port, tunnelUrlConfig.IsSecure ? "1" : "0");
+                this.javaTunnel.StartInfo.Arguments += string.Format("{0},{1},{2},", tunnelUrlConfig.Host, tunnelUrlConfig.Port, tunnelUrlConfig.IsSecure ? "1" : "0");
             }
 
             this.javaTunnel.StartInfo.UseShellExecute = false;

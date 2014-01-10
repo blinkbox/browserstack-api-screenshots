@@ -103,11 +103,6 @@ namespace BrowserStack.API.Screenshots
             /// The job was successfully completed.
             /// </summary>
             Done,
-
-            /// <summary>
-            /// The job is currently processing.
-            /// </summary>
-            Processing,
         }
 
         #endregion

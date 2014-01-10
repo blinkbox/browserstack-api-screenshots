@@ -447,6 +447,9 @@ namespace BrowserStack.API.Screenshots
                     this.OnJobStateChanged(new JobEventArgs(job));
                 }
 
+                // Replace the job with the new one
+                this.Jobs[this.Jobs.IndexOf(this.Jobs.First(x => x.Id == job.Id))] = job;
+
                 ////// Serialize job info to drive
                 ////var serializer = new DataContractSerializer(typeof(Job));
                 ////using (var fs = File.Open(string.Format(@"{0}\Job_{1}.xml", this.rootFolderToSaveTo, job.Id), FileMode.Create))
@@ -455,8 +458,7 @@ namespace BrowserStack.API.Screenshots
                 ////}
 
                 // While the job is processing, start tasks to capture the screenshots that have been generated so far
-                // Note: Not really sure which of the states is valid for a job
-                if (job.State == Job.States.Processing || job.State == Job.States.Queue)
+                if (job.State == Job.States.Done || job.State == Job.States.Queue)
                 {
                     // Get the screenshots that need to be handled. These should not have been handled before.
                     var screenshotsToHandle =
@@ -469,7 +471,6 @@ namespace BrowserStack.API.Screenshots
 
                         // Then start a task for asynchronously saving the screenshot to a file
                         var screenshotTask = this.SaveScreenshotAsync(screenshot, job.Info, rootPath);
-                        screenshotTask.Start();
 
                         // Finally add the screenshot to the list of tasks that need to be completed
                         screenshotTasks.Add(screenshotTask);
