@@ -1,3 +1,12 @@
+// --------------------------------------------------------------------------------------------------------------------
+// <copyright file="Screenshot.cs" company="blinkbox Entertainment Ltd">
+//   Copyright © 2014 blinkbox Entertainment Ltd
+// </copyright>
+// <summary>
+//   Represents a screenshot taken through BrowserStack.
+// </summary>
+// --------------------------------------------------------------------------------------------------------------------
+
 namespace BrowserStack.API.Screenshots
 {
     #region Using Directives
@@ -7,8 +16,9 @@ namespace BrowserStack.API.Screenshots
     #endregion
 
     /// <summary>
-    /// Represents a screenshot taken through Browserstack.
+    /// Represents a screenshot taken through BrowserStack.
     /// </summary>
+    [Serializable]
     public class Screenshot
     {
         #region Enums
@@ -22,22 +32,22 @@ namespace BrowserStack.API.Screenshots
             /// <summary>
             /// The screenshot has not yet been started.
             /// </summary>
-            Pending = 0,
+            Pending = 0, 
 
             /// <summary>
             /// The screenshot generation failed because of a timeout.
             /// </summary>
-            TimedOut,
+            TimedOut, 
 
             /// <summary>
             /// The screenshot was successfully taken.
             /// </summary>
-            Done,
+            Done, 
 
             /// <summary>
             /// The screenshot is currently being processed.
             /// </summary>
-            Processing,
+            Processing, 
         }
 
         #endregion

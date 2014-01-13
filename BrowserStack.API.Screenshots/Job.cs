@@ -1,3 +1,12 @@
+// --------------------------------------------------------------------------------------------------------------------
+// <copyright file="Job.cs" company="blinkbox Entertainment Ltd">
+//   Copyright © 2014 blinkbox Entertainment Ltd
+// </copyright>
+// <summary>
+//   Represents a screenshot capture job in BrowserStack.
+// </summary>
+// --------------------------------------------------------------------------------------------------------------------
+
 namespace BrowserStack.API.Screenshots
 {
     #region Using Directives
@@ -10,9 +19,41 @@ namespace BrowserStack.API.Screenshots
     /// <summary>
     /// Represents a screenshot capture job in BrowserStack.
     /// </summary>
+    [Serializable]
     public class Job
     {
         #region Enums
+
+        /// <summary>
+        /// The possible screen resolutions for OSX operating systems.
+        /// </summary>
+        public enum OSXResolutions
+        {
+            /// <summary>
+            /// 1024x768 resolution.
+            /// </summary>
+            R_1024x768, 
+
+            /// <summary>
+            /// 1280x968 resolution.
+            /// </summary>
+            R_1280x960, 
+
+            /// <summary>
+            /// The r_1280 x 1024.
+            /// </summary>
+            R_1280x1024, 
+
+            /// <summary>
+            /// The r_1600 x 1200.
+            /// </summary>
+            R_1600x1200, 
+
+            /// <summary>
+            /// The r_1920 x 1080.
+            /// </summary>
+            R_1920x1080, 
+        }
 
         /// <summary>
         /// The possible orientations of a mobile device.
@@ -22,7 +63,7 @@ namespace BrowserStack.API.Screenshots
             /// <summary>
             /// Portrait orientation.
             /// </summary>
-            Portrait,
+            Portrait, 
 
             /// <summary>
             /// Landscape orientation.
@@ -38,44 +79,12 @@ namespace BrowserStack.API.Screenshots
             /// <summary>
             /// Original quality, the screenshot is captured as is.
             /// </summary>
-            Original,
+            Original, 
 
             /// <summary>
             /// Compressed quality, the screenshot is compressed after being captured.
             /// </summary>
-            Compressed,
-        }
-
-        /// <summary>
-        /// The possible screen resolutions for OSX operating systems.
-        /// </summary>
-        public enum OSXResolutions
-        {
-            /// <summary>
-            /// 1024x768 resolution.
-            /// </summary>
-            R_1024x768,
-
-            /// <summary>
-            /// 1280x968 resolution.
-            /// </summary>
-            R_1280x960,
-
-            R_1280x1024,
-
-            R_1600x1200,
-
-            R_1920x1080,
-        }
-
-        /// <summary>
-        /// The possible screen resolutions for Windows operating systems.
-        /// </summary>
-        public enum WinResolutions
-        {
-            R_1024x768,
-
-            R_1280x1024,
+            Compressed, 
         }
 
         /// <summary>
@@ -87,22 +96,38 @@ namespace BrowserStack.API.Screenshots
             /// <summary>
             /// The job has not yet been started.
             /// </summary>
-            Pending = 0,
+            Pending = 0, 
 
             /// <summary>
             /// The job has been queued for execution.
             /// </summary>
-            Queue,
+            Queue, 
 
             /// <summary>
             /// The job has timed out.
             /// </summary>
-            TimedOut,
+            TimedOut, 
 
             /// <summary>
             /// The job was successfully completed.
             /// </summary>
-            Done,
+            Done, 
+        }
+
+        /// <summary>
+        /// The possible screen resolutions for Windows operating systems.
+        /// </summary>
+        public enum WinResolutions
+        {
+            /// <summary>
+            /// The r_1024 x 768.
+            /// </summary>
+            R_1024x768, 
+
+            /// <summary>
+            /// The r_1280 x 1024.
+            /// </summary>
+            R_1280x1024, 
         }
 
         #endregion
@@ -145,6 +170,7 @@ namespace BrowserStack.API.Screenshots
         /// <summary>
         /// Describes the configuration of the BrowserStack screenshot job
         /// </summary>
+        [Serializable]
         public class JobInfo
         {
             #region Public Properties
@@ -155,15 +181,15 @@ namespace BrowserStack.API.Screenshots
             public string CallbackUrl { get; set; }
 
             /// <summary>
+            /// Gets or sets the orientation to be used for mobile browsers.
+            /// </summary>
+            public Orientations? Orientation { get; set; }
+
+            /// <summary>
             /// Gets or sets the resolution that will be used to capture screenshots on Mac browsers.
             /// </summary>
             public OSXResolutions? OsxResolution { get; set; }
 
-            /// <summary>
-            /// Gets or sets the orientation to be used for mobile browsers.
-            /// </summary>
-            public Orientations? Orientation { get; set; }
-            
             /// <summary>
             /// Gets or sets the quality to be used when capturing screenshots.
             /// </summary>
