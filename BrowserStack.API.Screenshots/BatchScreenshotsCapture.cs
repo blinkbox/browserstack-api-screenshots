@@ -531,26 +531,25 @@ namespace BrowserStack.API.Screenshots
             // Create the folder for the screenshot
             var directory = this.CreateScreenshotDirectory(jobInfo, screenshot.Browser, rootPath);
             var filename = string.Format("{0}", this.urlFilenames.ContainsKey(screenshot.Url) ? this.urlFilenames[screenshot.Url] : screenshot.Id);
-            var screenshotFullPath = Path.Combine(directory.FullName, filename + ".png");
-            var thumbnailFullPath = this.captureThumbnails ? Path.Combine(directory.FullName, filename + "_thumbnail.png") : null;
             
             try
             {
                 if (screenshot.State == Screenshot.States.Done)
                 {
-                    if (!File.Exists(screenshotFullPath))
+                    var tasksToWaitFor = new List<Task>();
+                    tasksToWaitFor.Add(this.screenshotsApi.SaveScreenshotToFileAsync(screenshot, directory.FullName, filename, false));
+
+                    if (this.captureThumbnails)
                     {
-                        await this.screenshotsApi.SaveScreenshotToFileAsync(screenshot, screenshotFullPath, thumbnailFullPath);
+                        tasksToWaitFor.Add(this.screenshotsApi.SaveThumbnailToFileAsync(screenshot, directory.FullName, filename + "_thumbnail", false));
                     }
-                }
-                else
-                {
-                    File.WriteAllText(Path.Combine(directory.FullName, filename + string.Format("_{0}.txt", screenshot.State)), string.Empty);
+
+                    await Task.WhenAll(tasksToWaitFor.ToArray());
                 }
             }
             catch (Exception ex)
             {
-                this.OnScreenshotFailed(new ScreenshotFailedEventArgs(screenshot, ex, screenshotFullPath, thumbnailFullPath));
+                this.OnScreenshotFailed(new ScreenshotFailedEventArgs(screenshot, ex, filename));
             }
 
             this.ScreenhotsCompleted.Add(screenshot);
@@ -662,12 +661,10 @@ namespace BrowserStack.API.Screenshots
         /// </summary>
         /// <param name="screenshot">The screenshot.</param>
         /// <param name="exception">The exception.</param>
-        /// <param name="imageFilePath">The image file path.</param>
-        /// <param name="thumbnailFilePath">The thumbnail file path.</param>
-        public ScreenshotFailedEventArgs(Screenshot screenshot, Exception exception, string imageFilePath = null, string thumbnailFilePath = null)
+        /// <param name="imageName">The name of the image that could not be saved.</param>
+        public ScreenshotFailedEventArgs(Screenshot screenshot, Exception exception, string imageName = null)
         {
-            this.ThumbnailFilePath = thumbnailFilePath;
-            this.ImageFilePath = imageFilePath;
+            this.ImageName = imageName;
             this.Screenshot = screenshot;
             this.Exception = exception;
             this.State = screenshot.State;
@@ -678,9 +675,9 @@ namespace BrowserStack.API.Screenshots
         #region Public Properties
 
         /// <summary>
-        /// Gets the image file path.
+        /// Gets the image name.
         /// </summary>
-        public string ImageFilePath { get; private set; }
+        public string ImageName { get; private set; }
 
         /// <summary>
         /// Gets the screenshot.
@@ -696,11 +693,6 @@ namespace BrowserStack.API.Screenshots
         /// Gets the state.
         /// </summary>
         public Screenshot.States State { get; private set; }
-
-        /// <summary>
-        /// Gets the thumbnail file path.
-        /// </summary>
-        public string ThumbnailFilePath { get; private set; }
 
         #endregion
     }

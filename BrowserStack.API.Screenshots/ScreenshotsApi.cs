@@ -24,6 +24,7 @@ namespace BrowserStack.API.Screenshots
     using BrowserStack.API.Screenshots.Configuration;
 
     using Newtonsoft.Json;
+    using System.Diagnostics.Contracts;
 
     #endregion
 
@@ -164,36 +165,82 @@ namespace BrowserStack.API.Screenshots
         }
 
         /// <summary>
-        /// Saves a screenshot and it's thumbnail to a local path.
+        /// Saves a screenshot to a local path.
         /// </summary>
         /// <param name="screenshot">The screenshot.</param>
-        /// <param name="imagePath">The image path where to save the screenshot.</param>
-        /// <param name="thumbnailPath">The thumbnail path where to save the thumbnail. Leave null if the thumbnail should not be saved.</param>
+        /// <param name="path">The path where the image will be saved to.</param>
+        /// <param name="filename">
+        /// The name of the file where the image will be saved to. The extension will be added automatically according to the image path. 
+        /// If no filename is supplied then the original filename from the BrowserStack url will be used.
+        /// </param>
+        /// <param name="overwrite">If set to true then the file will be overwritten, otherwise no attempt will be made to retrieve the file.</param>
         /// <returns>
         /// The <see cref="Task" />.
         /// </returns>
-        public async Task SaveScreenshotToFileAsync(Screenshot screenshot, string imagePath, string thumbnailPath = null)
+        public async Task SaveScreenshotToFileAsync(Screenshot screenshot, string path, string filename = null, bool overwrite = false)
         {
-            // These calls do not require authentication and they actually FAIL if you add it
-            var tasks = new List<Task>();
+            Contract.Requires(screenshot != null);
+            Contract.Requires(path != null);
+
             using (var httpClient = new HttpClient())
             {
-                if (!string.IsNullOrEmpty(imagePath))
+                var fullPath = string.IsNullOrEmpty(filename)
+                    ? Path.Combine(path, Path.GetFileName(new Uri(screenshot.ImageUrl).AbsolutePath))
+                    : Path.Combine(path, filename + Path.GetExtension(new Uri(screenshot.ImageUrl).AbsolutePath));
+
+                // If there's no reason to perform the call then don't
+                if (!overwrite && File.Exists(fullPath))
                 {
+                    return;
+                }
+                else
+                {
+                    // This calls does not require authentication and they actually FAIL if you add it
                     var imageResponse = await httpClient.GetAsync(screenshot.ImageUrl);
                     imageResponse.EnsureSuccessStatusCode();
-                    tasks.Add(this.ReadAsFileAsync(imageResponse.Content, imagePath, true));
-                }
 
-                if (!string.IsNullOrEmpty(thumbnailPath))
+                    await this.ReadAsFileAsync(imageResponse.Content, fullPath, true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Saves a screenshot's thumbnail to a local path.
+        /// </summary>
+        /// <param name="screenshot">The screenshot.</param>
+        /// <param name="path">The path where the image will be saved to.</param>
+        /// <param name="filename">
+        /// The name of the file where the image will be saved to. The extension will be added automatically according to the image path. 
+        /// If no filename is supplied then the original filename from the BrowserStack url will be used.
+        /// </param>
+        /// <param name="overwrite">If set to true then the file will be overwritten, otherwise no attempt will be made to retrieve the file.</param>
+        /// <returns>
+        /// The <see cref="Task" />.
+        /// </returns>
+        public async Task SaveThumbnailToFileAsync(Screenshot screenshot, string path, string filename = null, bool overwrite = false)
+        {
+            Contract.Requires(screenshot != null);
+            Contract.Requires(path != null);
+
+            using (var httpClient = new HttpClient())
+            {
+                var fullPath = string.IsNullOrEmpty(filename)
+                    ? Path.Combine(path, Path.GetFileName(new Uri(screenshot.ThumbnailUrl).AbsolutePath))
+                    : Path.Combine(path, filename + Path.GetExtension(new Uri(screenshot.ThumbnailUrl).AbsolutePath));
+                
+                // If there's no reason to perform the call then don't
+                if (!overwrite && File.Exists(fullPath))
+                {
+                    return;
+                }
+                else
                 {
                     var imageResponse = await httpClient.GetAsync(screenshot.ThumbnailUrl);
                     imageResponse.EnsureSuccessStatusCode();
-                    tasks.Add(this.ReadAsFileAsync(imageResponse.Content, thumbnailPath, true));
+
+                    await this.ReadAsFileAsync(imageResponse.Content, fullPath, true);
                 }
             }
-
-            await Task.WhenAll(tasks);
         }
 
         /// <summary>
