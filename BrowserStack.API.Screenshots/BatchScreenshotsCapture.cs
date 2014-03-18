@@ -30,7 +30,7 @@ namespace BrowserStack.API.Screenshots
     /// start the necessary jobs to capture all the combinations of URLs and browsers. For each screenshot
     /// taken it saves the corresponding file to a local path.
     /// </remarks>
-    public sealed class BatchScreenshotsCapture
+    public sealed class BatchScreenshotsCapture : BrowserStack.API.Screenshots.IBatchScreenshotsCapture
     {
         #region Constants and Fields
 
@@ -42,7 +42,7 @@ namespace BrowserStack.API.Screenshots
         /// <summary>
         /// The screenshots API.
         /// </summary>
-        private readonly ScreenshotsApi screenshotsApi;
+        private readonly IScreenshotsApi screenshotsApi;
 
         /// <summary>
         /// The session limit.
@@ -68,6 +68,14 @@ namespace BrowserStack.API.Screenshots
 
         #region Constructors and Destructors
 
+        internal BatchScreenshotsCapture(IScreenshotsApi screenshotsApi)
+        {
+            this.screenshotsApi = screenshotsApi;
+
+            this.Jobs = new ObservableCollection<Job>();
+            this.ScreenhotsCompleted = new ObservableCollection<Screenshot>();
+        }
+
         /// <summary>
         /// Initializes a new instance of the <see cref="BatchScreenshotsCapture" /> class.
         /// </summary>
@@ -75,22 +83,11 @@ namespace BrowserStack.API.Screenshots
         /// <param name="captureThumbnails">if set to <c>true</c> then the batch job will also save the thumbnails when saving the screenshots.</param>
         /// <param name="username">The username.</param>
         /// <param name="password">The password.</param>
-        public BatchScreenshotsCapture(int sessionLimit, bool captureThumbnails, string username, string password)
+        public BatchScreenshotsCapture(int sessionLimit, bool captureThumbnails, string username, string password):
+            this(string.IsNullOrEmpty(username) && string.IsNullOrEmpty(password) ? new ScreenshotsApi() : new ScreenshotsApi(username, password))
         {
             this.sessionLimit = sessionLimit;
             this.captureThumbnails = captureThumbnails;
-
-            if (string.IsNullOrEmpty(username) && string.IsNullOrEmpty(password))
-            {
-                this.screenshotsApi = new ScreenshotsApi();
-            }
-            else
-            {
-                this.screenshotsApi = new ScreenshotsApi(username, password);
-            }
-
-            this.Jobs = new ObservableCollection<Job>();
-            this.ScreenhotsCompleted = new ObservableCollection<Screenshot>();
         }
 
         /// <summary>
@@ -98,17 +95,13 @@ namespace BrowserStack.API.Screenshots
         /// </summary>
         /// <remarks>Use this constructor when you want to configure the batch screenshots capture through the application configuration file.</remarks>
         /// <exception cref="System.Configuration.ConfigurationErrorsException">Thrown if there are errors in the application configuration section.</exception>
-        public BatchScreenshotsCapture()
+        public BatchScreenshotsCapture(): 
+            this(new ScreenshotsApi())
         {
             var config = ConfigurationSectionManager.Configuration;
             
             this.sessionLimit = config.Batch.SessionLimit;
             this.captureThumbnails = config.Batch.CaptureThumbnails;
-
-            this.screenshotsApi = new ScreenshotsApi();
-
-            this.Jobs = new ObservableCollection<Job>();
-            this.ScreenhotsCompleted = new ObservableCollection<Screenshot>();
         }
 
         #endregion
@@ -381,8 +374,7 @@ namespace BrowserStack.API.Screenshots
                 handler(this, args);
             }
         }
-
-
+        
         /// <summary>
         /// Sanitizes the batch jobs since BrowserStack only supports 25 browsers per url.
         /// </summary>

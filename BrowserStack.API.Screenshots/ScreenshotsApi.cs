@@ -31,7 +31,7 @@ namespace BrowserStack.API.Screenshots
     /// <summary>
     /// Provides a REST client for connecting to Browserstack's screenshots API. See http://www.browserstack.com/screenshots/api.
     /// </summary>
-    public sealed class ScreenshotsApi
+    public sealed class ScreenshotsApi : IScreenshotsApi
     {
         #region Constants and Fields
 
@@ -40,6 +40,21 @@ namespace BrowserStack.API.Screenshots
         /// </summary>
         private const string screenshotsRestAPIBaseUrl = "http://www.browserstack.com/screenshots/";
 
+        /// <summary>
+        /// The password used to connect to BrowserStack.
+        /// </summary>
+        private readonly string password;
+
+        /// <summary>
+        /// The username used to connect to BrowserStack.
+        /// </summary>
+        private readonly string username;
+
+        /// <summary>
+        /// The factory that will be used to construct instances of <see cref="HttpClient"/>.
+        /// </summary>
+        private Func<HttpClient> httpClientFactory { get; set; }
+
         #endregion
 
         #region Constructors and Destructors
@@ -47,14 +62,24 @@ namespace BrowserStack.API.Screenshots
         /// <summary>
         /// Initializes a new instance of the <see cref="ScreenshotsApi"/> class.
         /// </summary>
+        /// <remarks>This constructor is used for unit testing through poor man's DI.</remarks>
+        internal ScreenshotsApi(Func<HttpClient> httpClientFactory)
+        {
+            this.httpClientFactory = httpClientFactory;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ScreenshotsApi"/> class.
+        /// </summary>
         /// <remarks>Use this constructor when you want to configure the screenshots API through the application configuration file.</remarks>
         /// <exception cref="System.Configuration.ConfigurationErrorsException">Thrown if there are errors in the application configuration section.</exception>
         public ScreenshotsApi()
+            : this(() => new HttpClient())
         {
             var config = ConfigurationSectionManager.Configuration;
 
-            this.Username = config.Authentication.Username;
-            this.Password = config.Authentication.Password;
+            this.username = config.Authentication.Username;
+            this.password = config.Authentication.Password;
             this.AuthenticateForGetBrowsers = config.Authentication.AuthenticateForGetBrowsers;
             this.AuthenticateForGetJobInfo = config.Authentication.AuthenticateForGetJobInfo;
             this.AuthenticateForGetScreenshotImages = config.Authentication.AuthenticateForGetScreenshotImages;
@@ -71,9 +96,10 @@ namespace BrowserStack.API.Screenshots
         /// The password used to connect to BrowserStack.
         /// </param>
         public ScreenshotsApi(string username, string password)
+            : this(() => new HttpClient())
         {
-            this.Username = username;
-            this.Password = password;
+            this.username = username;
+            this.password = password;
             this.AuthenticateForGetBrowsers = false;
             this.AuthenticateForGetJobInfo = false;
             this.AuthenticateForGetScreenshotImages = false;
@@ -104,16 +130,6 @@ namespace BrowserStack.API.Screenshots
         /// </summary>
         public bool AuthenticateForStartJob { get; set; }
 
-        /// <summary>
-        /// Gets the password used to connect to BrowserStack.
-        /// </summary>
-        public string Password { get; private set; }
-
-        /// <summary>
-        /// Gets the username used to connect to BrowserStack.
-        /// </summary>
-        public string Username { get; private set; }
-
         #endregion
 
         #region Public Methods
@@ -126,7 +142,7 @@ namespace BrowserStack.API.Screenshots
         /// </returns>
         public async Task<IEnumerable<Browser>> GetBrowsersAsync()
         {
-            using (var httpClient = new HttpClient())
+            using (var httpClient = this.httpClientFactory.Invoke())
             {
                 // This call does not require authentication
                 var response = await httpClient.GetAsync(screenshotsRestAPIBaseUrl + "browsers");
@@ -147,7 +163,7 @@ namespace BrowserStack.API.Screenshots
         /// </returns>
         public async Task<Job> GetJobInfoAsync(string jobId)
         {
-            using (var httpClient = new HttpClient())
+            using (var httpClient = this.httpClientFactory.Invoke())
             {
                 var request = new HttpRequestMessage(HttpMethod.Get, screenshotsRestAPIBaseUrl + jobId + ".json");
                 if (this.AuthenticateForGetJobInfo)
@@ -182,7 +198,7 @@ namespace BrowserStack.API.Screenshots
             Contract.Requires(screenshot != null);
             Contract.Requires(path != null);
 
-            using (var httpClient = new HttpClient())
+            using (var httpClient = this.httpClientFactory.Invoke())
             {
                 var fullPath = string.IsNullOrEmpty(filename)
                     ? Path.Combine(path, Path.GetFileName(new Uri(screenshot.ImageUrl).AbsolutePath))
@@ -222,7 +238,7 @@ namespace BrowserStack.API.Screenshots
             Contract.Requires(screenshot != null);
             Contract.Requires(path != null);
 
-            using (var httpClient = new HttpClient())
+            using (var httpClient = this.httpClientFactory.Invoke())
             {
                 var fullPath = string.IsNullOrEmpty(filename)
                     ? Path.Combine(path, Path.GetFileName(new Uri(screenshot.ThumbnailUrl).AbsolutePath))
@@ -269,7 +285,7 @@ namespace BrowserStack.API.Screenshots
                 browsers = browsers.Select(x => new BrowserInfo() { browser = x.BrowserName, browser_version = x.BrowserVersion, device = x.Device, os = x.OS, os_version = x.OSVersion, }).ToArray()
             };
 
-            using (var httpClient = new HttpClient())
+            using (var httpClient = this.httpClientFactory.Invoke())
             {
                 var request = new HttpRequestMessage(HttpMethod.Post, screenshotsRestAPIBaseUrl)
                 {
@@ -360,7 +376,7 @@ namespace BrowserStack.API.Screenshots
         /// </returns>
         private AuthenticationHeaderValue GetAuthenticationHeader()
         {
-            return new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes(this.Username + ":" + this.Password)));
+            return new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes(this.username + ":" + this.password)));
         }
 
         /// <summary>

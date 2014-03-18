@@ -66,6 +66,8 @@
     <Compile Include="Configuration\BrowserStackAPIScreenshotsSection.cs" />
     <Compile Include="Configuration\ConfigurationSectionManager.cs" />
     <Compile Include="Configuration\TunnelsCollection.cs" />
+    <Compile Include="IBatchScreenshotsCapture.cs" />
+    <Compile Include="IScreenshotsApi.cs" />
     <Compile Include="Job.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Screenshot.cs" />
