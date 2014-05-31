@@ -11,6 +11,7 @@ namespace BrowserStack.API.Screenshots
     #region Using Directives
 
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Collections.ObjectModel;
     using System.IO;
@@ -60,9 +61,9 @@ namespace BrowserStack.API.Screenshots
         private List<BatchCaptureJobInfo> currentBatchJobsToRun;
 
         /// <summary>
-        /// The URL filenames.
+        /// The jobs to jobs to run.
         /// </summary>
-        private IDictionary<string, string> urlFilenames;
+        private ConcurrentDictionary<string, BatchCaptureJobInfo> jobsToJobsToRun;
 
         #endregion
 
@@ -219,7 +220,9 @@ namespace BrowserStack.API.Screenshots
             // Create the root folder to save the screenshots to. If this succeed then probably the rest of the folder and file creation will also succeed.
             Directory.CreateDirectory(rootPath);
             this.currentBatchJobsToRun = this.SanitizeBatchJobs(batchCaptureJobs).ToList();
-            this.urlFilenames = this.currentBatchJobsToRun.Select(x => new KeyValuePair<string, string>(x.Url, x.Filename)).Distinct().ToDictionary(x => x.Key, x => x.Value);
+            
+            // Hold the association between a job id and the job to run it originated from
+            this.jobsToJobsToRun = new ConcurrentDictionary<string, BatchCaptureJobInfo>();
 
             var runningSessions = 0;
             await Task.WhenAll(
@@ -249,6 +252,7 @@ namespace BrowserStack.API.Screenshots
                                 try
                                 {
                                     job = await this.screenshotsApi.StartJobAsync(jobToRun.Url, jobToRun.JobInfo, usingTunnel, jobToRun.Browsers);
+                                    jobsToJobsToRun.TryAdd(job.Id.ToLower(), jobToRun);
                                 }
                                 catch (Exception ex)
                                 {
@@ -488,7 +492,7 @@ namespace BrowserStack.API.Screenshots
                         handledScreenshotsDictionary.Add(screenshot.Id, screenshot);
 
                         // Then start a task for asynchronously saving the screenshot to a file
-                        var screenshotTask = this.SaveScreenshotAsync(screenshot, job.Info, rootPath);
+                        var screenshotTask = this.SaveScreenshotAsync(screenshot, job.Id, job.Info, rootPath);
 
                         // Finally add the screenshot to the list of tasks that need to be completed
                         screenshotTasks.Add(screenshotTask);
@@ -513,16 +517,17 @@ namespace BrowserStack.API.Screenshots
         /// The save screenshot async.
         /// </summary>
         /// <param name="screenshot">The screenshot.</param>
+        /// <param name="jobId">The job identifier.</param>
         /// <param name="jobInfo">The job info.</param>
         /// <param name="rootPath">The root path.</param>
         /// <returns>
         /// The <see cref="Task" />.
         /// </returns>
-        private async Task SaveScreenshotAsync(Screenshot screenshot, Job.JobInfo jobInfo, string rootPath)
+        private async Task SaveScreenshotAsync(Screenshot screenshot, string jobId, Job.JobInfo jobInfo, string rootPath)
         {
             // Create the folder for the screenshot
             var directory = this.CreateScreenshotDirectory(jobInfo, screenshot.Browser, rootPath);
-            var filename = string.Format("{0}", this.urlFilenames.ContainsKey(screenshot.Url) ? this.urlFilenames[screenshot.Url] : screenshot.Id);
+            var filename = this.jobsToJobsToRun[jobId.ToLower()].Filename;
             
             try
             {
