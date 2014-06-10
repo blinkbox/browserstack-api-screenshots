@@ -24,13 +24,14 @@ namespace BrowserStack.API.Screenshots
     using BrowserStack.API.Screenshots.Configuration;
 
     using Newtonsoft.Json;
+    using System.Diagnostics.Contracts;
 
     #endregion
 
     /// <summary>
     /// Provides a REST client for connecting to Browserstack's screenshots API. See http://www.browserstack.com/screenshots/api.
     /// </summary>
-    public sealed class ScreenshotsApi
+    public sealed class ScreenshotsApi : IScreenshotsApi
     {
         #region Constants and Fields
 
@@ -39,6 +40,21 @@ namespace BrowserStack.API.Screenshots
         /// </summary>
         private const string screenshotsRestAPIBaseUrl = "http://www.browserstack.com/screenshots/";
 
+        /// <summary>
+        /// The password used to connect to BrowserStack.
+        /// </summary>
+        private readonly string password;
+
+        /// <summary>
+        /// The username used to connect to BrowserStack.
+        /// </summary>
+        private readonly string username;
+
+        /// <summary>
+        /// The factory that will be used to construct instances of <see cref="HttpClient"/>.
+        /// </summary>
+        private Func<HttpClient> httpClientFactory { get; set; }
+
         #endregion
 
         #region Constructors and Destructors
@@ -46,14 +62,24 @@ namespace BrowserStack.API.Screenshots
         /// <summary>
         /// Initializes a new instance of the <see cref="ScreenshotsApi"/> class.
         /// </summary>
+        /// <remarks>This constructor is used for unit testing through poor man's DI.</remarks>
+        internal ScreenshotsApi(Func<HttpClient> httpClientFactory)
+        {
+            this.httpClientFactory = httpClientFactory;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ScreenshotsApi"/> class.
+        /// </summary>
         /// <remarks>Use this constructor when you want to configure the screenshots API through the application configuration file.</remarks>
         /// <exception cref="System.Configuration.ConfigurationErrorsException">Thrown if there are errors in the application configuration section.</exception>
         public ScreenshotsApi()
+            : this(() => new HttpClient())
         {
             var config = ConfigurationSectionManager.Configuration;
 
-            this.Username = config.Authentication.Username;
-            this.Password = config.Authentication.Password;
+            this.username = config.Authentication.Username;
+            this.password = config.Authentication.Password;
             this.AuthenticateForGetBrowsers = config.Authentication.AuthenticateForGetBrowsers;
             this.AuthenticateForGetJobInfo = config.Authentication.AuthenticateForGetJobInfo;
             this.AuthenticateForGetScreenshotImages = config.Authentication.AuthenticateForGetScreenshotImages;
@@ -70,9 +96,10 @@ namespace BrowserStack.API.Screenshots
         /// The password used to connect to BrowserStack.
         /// </param>
         public ScreenshotsApi(string username, string password)
+            : this(() => new HttpClient())
         {
-            this.Username = username;
-            this.Password = password;
+            this.username = username;
+            this.password = password;
             this.AuthenticateForGetBrowsers = false;
             this.AuthenticateForGetJobInfo = false;
             this.AuthenticateForGetScreenshotImages = false;
@@ -103,16 +130,6 @@ namespace BrowserStack.API.Screenshots
         /// </summary>
         public bool AuthenticateForStartJob { get; set; }
 
-        /// <summary>
-        /// Gets the password used to connect to BrowserStack.
-        /// </summary>
-        public string Password { get; private set; }
-
-        /// <summary>
-        /// Gets the username used to connect to BrowserStack.
-        /// </summary>
-        public string Username { get; private set; }
-
         #endregion
 
         #region Public Methods
@@ -125,7 +142,7 @@ namespace BrowserStack.API.Screenshots
         /// </returns>
         public async Task<IEnumerable<Browser>> GetBrowsersAsync()
         {
-            using (var httpClient = new HttpClient())
+            using (var httpClient = this.httpClientFactory.Invoke())
             {
                 // This call does not require authentication
                 var response = await httpClient.GetAsync(screenshotsRestAPIBaseUrl + "browsers");
@@ -146,7 +163,7 @@ namespace BrowserStack.API.Screenshots
         /// </returns>
         public async Task<Job> GetJobInfoAsync(string jobId)
         {
-            using (var httpClient = new HttpClient())
+            using (var httpClient = this.httpClientFactory.Invoke())
             {
                 var request = new HttpRequestMessage(HttpMethod.Get, screenshotsRestAPIBaseUrl + jobId + ".json");
                 if (this.AuthenticateForGetJobInfo)
@@ -164,36 +181,82 @@ namespace BrowserStack.API.Screenshots
         }
 
         /// <summary>
-        /// Saves a screenshot and it's thumbnail to a local path.
+        /// Saves a screenshot to a local path.
         /// </summary>
         /// <param name="screenshot">The screenshot.</param>
-        /// <param name="imagePath">The image path where to save the screenshot.</param>
-        /// <param name="thumbnailPath">The thumbnail path where to save the thumbnail. Leave null if the thumbnail should not be saved.</param>
+        /// <param name="path">The path where the image will be saved to.</param>
+        /// <param name="filename">
+        /// The name of the file where the image will be saved to. The extension will be added automatically according to the image path. 
+        /// If no filename is supplied then the original filename from the BrowserStack url will be used.
+        /// </param>
+        /// <param name="overwrite">If set to true then the file will be overwritten, otherwise no attempt will be made to retrieve the file.</param>
         /// <returns>
         /// The <see cref="Task" />.
         /// </returns>
-        public async Task SaveScreenshotToFileAsync(Screenshot screenshot, string imagePath, string thumbnailPath = null)
+        public async Task SaveScreenshotToFileAsync(Screenshot screenshot, string path, string filename = null, bool overwrite = false)
         {
-            // These calls do not require authentication and they actually FAIL if you add it
-            var tasks = new List<Task>();
-            using (var httpClient = new HttpClient())
+            Contract.Requires(screenshot != null);
+            Contract.Requires(path != null);
+
+            using (var httpClient = this.httpClientFactory.Invoke())
             {
-                if (!string.IsNullOrEmpty(imagePath))
+                var fullPath = string.IsNullOrEmpty(filename)
+                    ? Path.Combine(path, Path.GetFileName(new Uri(screenshot.ImageUrl).AbsolutePath))
+                    : Path.Combine(path, filename + Path.GetExtension(new Uri(screenshot.ImageUrl).AbsolutePath));
+
+                // If there's no reason to perform the call then don't
+                if (!overwrite && File.Exists(fullPath))
                 {
+                    return;
+                }
+                else
+                {
+                    // This calls does not require authentication and they actually FAIL if you add it
                     var imageResponse = await httpClient.GetAsync(screenshot.ImageUrl);
                     imageResponse.EnsureSuccessStatusCode();
-                    tasks.Add(this.ReadAsFileAsync(imageResponse.Content, imagePath, true));
-                }
 
-                if (!string.IsNullOrEmpty(thumbnailPath))
+                    await this.ReadAsFileAsync(imageResponse.Content, fullPath, true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Saves a screenshot's thumbnail to a local path.
+        /// </summary>
+        /// <param name="screenshot">The screenshot.</param>
+        /// <param name="path">The path where the image will be saved to.</param>
+        /// <param name="filename">
+        /// The name of the file where the image will be saved to. The extension will be added automatically according to the image path. 
+        /// If no filename is supplied then the original filename from the BrowserStack url will be used.
+        /// </param>
+        /// <param name="overwrite">If set to true then the file will be overwritten, otherwise no attempt will be made to retrieve the file.</param>
+        /// <returns>
+        /// The <see cref="Task" />.
+        /// </returns>
+        public async Task SaveThumbnailToFileAsync(Screenshot screenshot, string path, string filename = null, bool overwrite = false)
+        {
+            Contract.Requires(screenshot != null);
+            Contract.Requires(path != null);
+
+            using (var httpClient = this.httpClientFactory.Invoke())
+            {
+                var fullPath = string.IsNullOrEmpty(filename)
+                    ? Path.Combine(path, Path.GetFileName(new Uri(screenshot.ThumbnailUrl).AbsolutePath))
+                    : Path.Combine(path, filename + Path.GetExtension(new Uri(screenshot.ThumbnailUrl).AbsolutePath));
+                
+                // If there's no reason to perform the call then don't
+                if (!overwrite && File.Exists(fullPath))
+                {
+                    return;
+                }
+                else
                 {
                     var imageResponse = await httpClient.GetAsync(screenshot.ThumbnailUrl);
                     imageResponse.EnsureSuccessStatusCode();
-                    tasks.Add(this.ReadAsFileAsync(imageResponse.Content, thumbnailPath, true));
+
+                    await this.ReadAsFileAsync(imageResponse.Content, fullPath, true);
                 }
             }
-
-            await Task.WhenAll(tasks);
         }
 
         /// <summary>
@@ -222,7 +285,7 @@ namespace BrowserStack.API.Screenshots
                 browsers = browsers.Select(x => new BrowserInfo() { browser = x.BrowserName, browser_version = x.BrowserVersion, device = x.Device, os = x.OS, os_version = x.OSVersion, }).ToArray()
             };
 
-            using (var httpClient = new HttpClient())
+            using (var httpClient = this.httpClientFactory.Invoke())
             {
                 var request = new HttpRequestMessage(HttpMethod.Post, screenshotsRestAPIBaseUrl)
                 {
@@ -313,7 +376,7 @@ namespace BrowserStack.API.Screenshots
         /// </returns>
         private AuthenticationHeaderValue GetAuthenticationHeader()
         {
-            return new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes(this.Username + ":" + this.Password)));
+            return new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes(this.username + ":" + this.password)));
         }
 
         /// <summary>

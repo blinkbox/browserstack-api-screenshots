@@ -11,6 +11,7 @@ namespace BrowserStack.API.Screenshots
     #region Using Directives
 
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Collections.ObjectModel;
     using System.IO;
@@ -30,7 +31,7 @@ namespace BrowserStack.API.Screenshots
     /// start the necessary jobs to capture all the combinations of URLs and browsers. For each screenshot
     /// taken it saves the corresponding file to a local path.
     /// </remarks>
-    public sealed class BatchScreenshotsCapture
+    public sealed class BatchScreenshotsCapture : BrowserStack.API.Screenshots.IBatchScreenshotsCapture
     {
         #region Constants and Fields
 
@@ -42,7 +43,7 @@ namespace BrowserStack.API.Screenshots
         /// <summary>
         /// The screenshots API.
         /// </summary>
-        private readonly ScreenshotsApi screenshotsApi;
+        private readonly IScreenshotsApi screenshotsApi;
 
         /// <summary>
         /// The session limit.
@@ -60,13 +61,21 @@ namespace BrowserStack.API.Screenshots
         private List<BatchCaptureJobInfo> currentBatchJobsToRun;
 
         /// <summary>
-        /// The URL filenames.
+        /// The jobs to jobs to run.
         /// </summary>
-        private IDictionary<string, string> urlFilenames;
+        private ConcurrentDictionary<string, BatchCaptureJobInfo> jobsToJobsToRun;
 
         #endregion
 
         #region Constructors and Destructors
+
+        internal BatchScreenshotsCapture(IScreenshotsApi screenshotsApi)
+        {
+            this.screenshotsApi = screenshotsApi;
+
+            this.Jobs = new ObservableCollection<Job>();
+            this.ScreenhotsCompleted = new ObservableCollection<Screenshot>();
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="BatchScreenshotsCapture" /> class.
@@ -75,22 +84,11 @@ namespace BrowserStack.API.Screenshots
         /// <param name="captureThumbnails">if set to <c>true</c> then the batch job will also save the thumbnails when saving the screenshots.</param>
         /// <param name="username">The username.</param>
         /// <param name="password">The password.</param>
-        public BatchScreenshotsCapture(int sessionLimit, bool captureThumbnails, string username, string password)
+        public BatchScreenshotsCapture(int sessionLimit, bool captureThumbnails, string username, string password):
+            this(string.IsNullOrEmpty(username) && string.IsNullOrEmpty(password) ? new ScreenshotsApi() : new ScreenshotsApi(username, password))
         {
             this.sessionLimit = sessionLimit;
             this.captureThumbnails = captureThumbnails;
-
-            if (string.IsNullOrEmpty(username) && string.IsNullOrEmpty(password))
-            {
-                this.screenshotsApi = new ScreenshotsApi();
-            }
-            else
-            {
-                this.screenshotsApi = new ScreenshotsApi(username, password);
-            }
-
-            this.Jobs = new ObservableCollection<Job>();
-            this.ScreenhotsCompleted = new ObservableCollection<Screenshot>();
         }
 
         /// <summary>
@@ -98,17 +96,13 @@ namespace BrowserStack.API.Screenshots
         /// </summary>
         /// <remarks>Use this constructor when you want to configure the batch screenshots capture through the application configuration file.</remarks>
         /// <exception cref="System.Configuration.ConfigurationErrorsException">Thrown if there are errors in the application configuration section.</exception>
-        public BatchScreenshotsCapture()
+        public BatchScreenshotsCapture(): 
+            this(new ScreenshotsApi())
         {
             var config = ConfigurationSectionManager.Configuration;
             
             this.sessionLimit = config.Batch.SessionLimit;
             this.captureThumbnails = config.Batch.CaptureThumbnails;
-
-            this.screenshotsApi = new ScreenshotsApi();
-
-            this.Jobs = new ObservableCollection<Job>();
-            this.ScreenhotsCompleted = new ObservableCollection<Screenshot>();
         }
 
         #endregion
@@ -226,7 +220,9 @@ namespace BrowserStack.API.Screenshots
             // Create the root folder to save the screenshots to. If this succeed then probably the rest of the folder and file creation will also succeed.
             Directory.CreateDirectory(rootPath);
             this.currentBatchJobsToRun = this.SanitizeBatchJobs(batchCaptureJobs).ToList();
-            this.urlFilenames = this.currentBatchJobsToRun.Select(x => new KeyValuePair<string, string>(x.Url, x.Filename)).Distinct().ToDictionary(x => x.Key, x => x.Value);
+            
+            // Hold the association between a job id and the job to run it originated from
+            this.jobsToJobsToRun = new ConcurrentDictionary<string, BatchCaptureJobInfo>();
 
             var runningSessions = 0;
             await Task.WhenAll(
@@ -256,6 +252,7 @@ namespace BrowserStack.API.Screenshots
                                 try
                                 {
                                     job = await this.screenshotsApi.StartJobAsync(jobToRun.Url, jobToRun.JobInfo, usingTunnel, jobToRun.Browsers);
+                                    jobsToJobsToRun.TryAdd(job.Id.ToLower(), jobToRun);
                                 }
                                 catch (Exception ex)
                                 {
@@ -381,8 +378,7 @@ namespace BrowserStack.API.Screenshots
                 handler(this, args);
             }
         }
-
-
+        
         /// <summary>
         /// Sanitizes the batch jobs since BrowserStack only supports 25 browsers per url.
         /// </summary>
@@ -496,7 +492,7 @@ namespace BrowserStack.API.Screenshots
                         handledScreenshotsDictionary.Add(screenshot.Id, screenshot);
 
                         // Then start a task for asynchronously saving the screenshot to a file
-                        var screenshotTask = this.SaveScreenshotAsync(screenshot, job.Info, rootPath);
+                        var screenshotTask = this.SaveScreenshotAsync(screenshot, job.Id, job.Info, rootPath);
 
                         // Finally add the screenshot to the list of tasks that need to be completed
                         screenshotTasks.Add(screenshotTask);
@@ -521,36 +517,36 @@ namespace BrowserStack.API.Screenshots
         /// The save screenshot async.
         /// </summary>
         /// <param name="screenshot">The screenshot.</param>
+        /// <param name="jobId">The job identifier.</param>
         /// <param name="jobInfo">The job info.</param>
         /// <param name="rootPath">The root path.</param>
         /// <returns>
         /// The <see cref="Task" />.
         /// </returns>
-        private async Task SaveScreenshotAsync(Screenshot screenshot, Job.JobInfo jobInfo, string rootPath)
+        private async Task SaveScreenshotAsync(Screenshot screenshot, string jobId, Job.JobInfo jobInfo, string rootPath)
         {
             // Create the folder for the screenshot
             var directory = this.CreateScreenshotDirectory(jobInfo, screenshot.Browser, rootPath);
-            var filename = string.Format("{0}", this.urlFilenames.ContainsKey(screenshot.Url) ? this.urlFilenames[screenshot.Url] : screenshot.Id);
-            var screenshotFullPath = Path.Combine(directory.FullName, filename + ".png");
-            var thumbnailFullPath = this.captureThumbnails ? Path.Combine(directory.FullName, filename + "_thumbnail.png") : null;
+            var filename = this.jobsToJobsToRun[jobId.ToLower()].Filename;
             
             try
             {
                 if (screenshot.State == Screenshot.States.Done)
                 {
-                    if (!File.Exists(screenshotFullPath))
+                    var tasksToWaitFor = new List<Task>();
+                    tasksToWaitFor.Add(this.screenshotsApi.SaveScreenshotToFileAsync(screenshot, directory.FullName, filename, false));
+
+                    if (this.captureThumbnails)
                     {
-                        await this.screenshotsApi.SaveScreenshotToFileAsync(screenshot, screenshotFullPath, thumbnailFullPath);
+                        tasksToWaitFor.Add(this.screenshotsApi.SaveThumbnailToFileAsync(screenshot, directory.FullName, filename + "_thumbnail", false));
                     }
-                }
-                else
-                {
-                    File.WriteAllText(Path.Combine(directory.FullName, filename + string.Format("_{0}.txt", screenshot.State)), string.Empty);
+
+                    await Task.WhenAll(tasksToWaitFor.ToArray());
                 }
             }
             catch (Exception ex)
             {
-                this.OnScreenshotFailed(new ScreenshotFailedEventArgs(screenshot, ex, screenshotFullPath, thumbnailFullPath));
+                this.OnScreenshotFailed(new ScreenshotFailedEventArgs(screenshot, ex, filename));
             }
 
             this.ScreenhotsCompleted.Add(screenshot);
@@ -662,12 +658,10 @@ namespace BrowserStack.API.Screenshots
         /// </summary>
         /// <param name="screenshot">The screenshot.</param>
         /// <param name="exception">The exception.</param>
-        /// <param name="imageFilePath">The image file path.</param>
-        /// <param name="thumbnailFilePath">The thumbnail file path.</param>
-        public ScreenshotFailedEventArgs(Screenshot screenshot, Exception exception, string imageFilePath = null, string thumbnailFilePath = null)
+        /// <param name="imageName">The name of the image that could not be saved.</param>
+        public ScreenshotFailedEventArgs(Screenshot screenshot, Exception exception, string imageName = null)
         {
-            this.ThumbnailFilePath = thumbnailFilePath;
-            this.ImageFilePath = imageFilePath;
+            this.ImageName = imageName;
             this.Screenshot = screenshot;
             this.Exception = exception;
             this.State = screenshot.State;
@@ -678,9 +672,9 @@ namespace BrowserStack.API.Screenshots
         #region Public Properties
 
         /// <summary>
-        /// Gets the image file path.
+        /// Gets the image name.
         /// </summary>
-        public string ImageFilePath { get; private set; }
+        public string ImageName { get; private set; }
 
         /// <summary>
         /// Gets the screenshot.
@@ -696,11 +690,6 @@ namespace BrowserStack.API.Screenshots
         /// Gets the state.
         /// </summary>
         public Screenshot.States State { get; private set; }
-
-        /// <summary>
-        /// Gets the thumbnail file path.
-        /// </summary>
-        public string ThumbnailFilePath { get; private set; }
 
         #endregion
     }
