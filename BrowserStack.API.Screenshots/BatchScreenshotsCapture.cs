@@ -158,6 +158,12 @@ namespace BrowserStack.API.Screenshots
         public event JobFailureEvent JobFailedToStart;
 
         /// <summary>
+        /// Occurs when a job fails.
+        /// </summary>
+        /// <remarks>This event is raised when there is an error in the communication with the Screenshots API.</remarks>
+        public event JobFailureEvent JobFailed;
+
+        /// <summary>
         /// Occurs when a job's status changes.
         /// </summary>
         public event JobEvent JobStateChanged;
@@ -269,14 +275,23 @@ namespace BrowserStack.API.Screenshots
 
                                 if (job != null)
                                 {
+                                    var jobId = job.Id.ToLower();
                                     try
                                     {
                                         this.Jobs.Add(job);
                                         this.OnJobStarted(new JobEventArgs(job));
 
-                                        var completedJob = await this.HandleScreenshotsJobAsync(job.Id, rootPath);
-                                        this.Jobs[this.Jobs.IndexOf(this.Jobs.First(x => x.Id == job.Id))] = completedJob;
+                                        var completedJob = await this.HandleScreenshotsJobAsync(jobId, rootPath);
+                                        
+                                        // Replace the existing started job in the list with the completed job
+                                        this.Jobs[this.Jobs.IndexOf(this.Jobs.First(x => x.Id.Equals(job.Id, StringComparison.OrdinalIgnoreCase)))] = completedJob;
                                         this.OnJobCompleted(new JobEventArgs(completedJob));
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        // If one job fails there's no reason to stop processing
+                                        var failedJob = this.jobsToJobsToRun[jobId];
+                                        this.OnJobFailed(new JobFailureEventArgs(failedJob.Url, failedJob.JobInfo, failedJob.Browsers, ex));
                                     }
                                     finally
                                     {
@@ -326,7 +341,20 @@ namespace BrowserStack.API.Screenshots
                 handler(this, args);
             }
         }
-
+        
+        /// <summary>
+        /// Raises the <see cref="E:JobFailedToStart" /> event.
+        /// </summary>
+        /// <param name="args">The <see cref="JobFailureEventArgs"/> instance containing the event data.</param>
+        private void OnJobFailed(JobFailureEventArgs args)
+        {
+            JobFailureEvent handler = this.JobFailed;
+            if (handler != null)
+            {
+                handler(this, args);
+            }
+        }
+        
         /// <summary>
         /// Raises the <see cref="E:JobStarted" /> event.
         /// </summary>
@@ -459,51 +487,65 @@ namespace BrowserStack.API.Screenshots
             var screenshotTasks = new List<Task>();
 
             Job job = null;
+            var getJobErrorCount = 0;
 
             while (true)
             {
-                job = this.screenshotsApi.GetJobInfoAsync(jobId).Result;
-
-                if (this.Jobs.First(x => x.Id == job.Id).State != job.State)
+                try
                 {
-                    this.OnJobStateChanged(new JobEventArgs(job));
+                    job = null;
+                    job = this.screenshotsApi.GetJobInfoAsync(jobId).Result;
+                }
+                catch (Exception)
+                {
+                    // Implementing a retry logic for getting a job information, as it's simply an http request that could fail
+                    getJobErrorCount++;
+                    if (getJobErrorCount >= 10) throw;
                 }
 
-                // Replace the job with the new one
-                this.Jobs[this.Jobs.IndexOf(this.Jobs.First(x => x.Id == job.Id))] = job;
-
-                ////// Serialize job info to drive
-                ////var serializer = new DataContractSerializer(typeof(Job));
-                ////using (var fs = File.Open(string.Format(@"{0}\Job_{1}.xml", this.rootFolderToSaveTo, job.Id), FileMode.Create))
-                ////{
-                ////    serializer.WriteObject(fs, job);
-                ////}
-
-                // While the job is processing, start tasks to capture the screenshots that have been generated so far
-                if (job.State == Job.States.Done || job.State == Job.States.Queue)
+                if (job != null)
                 {
-                    // Get the screenshots that need to be handled. These should not have been handled before.
-                    var screenshotsToHandle =
-                        job.Screenshots.Where(x => !handledScreenshotsDictionary.ContainsKey(x.Id)).Where(x => x.State == Screenshot.States.Done || x.State == Screenshot.States.TimedOut).ToList();
-
-                    foreach (var screenshot in screenshotsToHandle)
+                    if (this.Jobs.First(x => x.Id == job.Id).State != job.State)
                     {
-                        // First add the screenshot to the list of already handled screenshots
-                        handledScreenshotsDictionary.Add(screenshot.Id, screenshot);
-
-                        // Then start a task for asynchronously saving the screenshot to a file
-                        var screenshotTask = this.SaveScreenshotAsync(screenshot, job.Id, job.Info, rootPath);
-
-                        // Finally add the screenshot to the list of tasks that need to be completed
-                        screenshotTasks.Add(screenshotTask);
+                        this.OnJobStateChanged(new JobEventArgs(job));
                     }
-                }
 
-                if (job.IsComplete)
-                {
-                    break;
-                }
+                    // Replace the job with the new one
+                    this.Jobs[this.Jobs.IndexOf(this.Jobs.First(x => x.Id.Equals(job.Id, StringComparison.OrdinalIgnoreCase)))] = job;
 
+                    ////// Serialize job info to drive
+                    ////var serializer = new DataContractSerializer(typeof(Job));
+                    ////using (var fs = File.Open(string.Format(@"{0}\Job_{1}.xml", this.rootFolderToSaveTo, job.Id), FileMode.Create))
+                    ////{
+                    ////    serializer.WriteObject(fs, job);
+                    ////}
+
+                    // While the job is processing, start tasks to capture the screenshots that have been generated so far
+                    if (job.State == Job.States.Done || job.State == Job.States.Queue)
+                    {
+                        // Get the screenshots that need to be handled. These should not have been handled before.
+                        var screenshotsToHandle =
+                            job.Screenshots.Where(x => !handledScreenshotsDictionary.ContainsKey(x.Id)).Where(x => x.State == Screenshot.States.Done || x.State == Screenshot.States.TimedOut).ToList();
+
+                        foreach (var screenshot in screenshotsToHandle)
+                        {
+                            // First add the screenshot to the list of already handled screenshots
+                            handledScreenshotsDictionary.Add(screenshot.Id, screenshot);
+
+                            // Then start a task for asynchronously saving the screenshot to a file
+                            var screenshotTask = this.SaveScreenshotAsync(screenshot, job.Id, job.Info, rootPath);
+
+                            // Finally add the screenshot to the list of tasks that need to be completed
+                            screenshotTasks.Add(screenshotTask);
+                        }
+                    }
+
+                    if (job.IsComplete)
+                    {
+                        break;
+                    }
+
+                }
                 // Wait for some time before reading the job status again
                 Thread.Sleep(4000);
             }
