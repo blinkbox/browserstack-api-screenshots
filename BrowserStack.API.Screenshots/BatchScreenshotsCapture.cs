@@ -84,7 +84,7 @@ namespace BrowserStack.API.Screenshots
         /// <param name="captureThumbnails">if set to <c>true</c> then the batch job will also save the thumbnails when saving the screenshots.</param>
         /// <param name="username">The username.</param>
         /// <param name="password">The password.</param>
-        public BatchScreenshotsCapture(int sessionLimit, bool captureThumbnails, string username, string password):
+        public BatchScreenshotsCapture(int sessionLimit, bool captureThumbnails, string username = null, string password = null):
             this(string.IsNullOrEmpty(username) && string.IsNullOrEmpty(password) ? new ScreenshotsApi() : new ScreenshotsApi(username, password))
         {
             this.sessionLimit = sessionLimit;
@@ -310,6 +310,12 @@ namespace BrowserStack.API.Screenshots
                             }
                         }
                     }));
+        }
+
+        public void ExecuteBatch(string rootPath, bool usingTunnel, params BatchCaptureJobInfo[] batchCaptureJobs)
+        {
+            var executeBatchAsync = ExecuteBatchAsync(rootPath, usingTunnel, batchCaptureJobs);
+            executeBatchAsync.GetAwaiter().GetResult(); //To properly re-throw an exception: http://stackoverflow.com/questions/20170527/how-to-correctly-rethrow-an-exception-of-task-already-in-faulted-state
         }
 
         #endregion

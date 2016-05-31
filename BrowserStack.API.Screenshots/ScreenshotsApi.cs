@@ -7,6 +7,8 @@
 // </summary>
 // --------------------------------------------------------------------------------------------------------------------
 
+using System.Diagnostics;
+
 namespace BrowserStack.API.Screenshots
 {
     #region Using Directives
@@ -148,10 +150,22 @@ namespace BrowserStack.API.Screenshots
                 var response = await httpClient.GetAsync(screenshotsRestAPIBaseUrl + "browsers");
                 response.EnsureSuccessStatusCode();
                 var data = await response.Content.ReadAsStringAsync();
-                var browsers = await JsonConvert.DeserializeObjectAsync<IEnumerable<BrowserInfo>>(data);
+                var browsers = await Task.Factory.StartNew(() => JsonConvert.DeserializeObject<IEnumerable<BrowserInfo>>(data));
 
-                return browsers.Select(x => MapInfoToBrowser(x));
+                return browsers.Select(MapInfoToBrowser);
             }
+        }
+
+        /// <summary>
+        /// Retrieves a list of the supported browsers from BrowserStack. See http://www.browserstack.com/list-of-browsers-and-platforms?product=screenshots.
+        /// </summary>
+        /// <returns>
+        /// The <see cref="Browser" />.
+        /// </returns>
+        public IEnumerable<Browser> GetBrowsers()
+        {
+            var browsersJob = GetBrowsersAsync();
+            return browsersJob.GetAwaiter().GetResult(); //To properly re-throw an exception: http://stackoverflow.com/questions/20170527/how-to-correctly-rethrow-an-exception-of-task-already-in-faulted-state
         }
 
         /// <summary>
@@ -174,11 +188,26 @@ namespace BrowserStack.API.Screenshots
                 var response = await httpClient.SendAsync(request);
                 response.EnsureSuccessStatusCode();
                 var data = await response.Content.ReadAsStringAsync();
-                var screenshotJob = await JsonConvert.DeserializeObjectAsync<ScreenshotJob>(data);
+                var screenshotJob = await Task.Factory.StartNew(() => JsonConvert.DeserializeObject<ScreenshotJob>(data));
 
+                System.Diagnostics.Trace.WriteLineIf(Debugger.IsAttached,"GetJobInfoAsync(jobId:"+jobId+") Response Content\n" + data);
                 return MapToJob(screenshotJob);
             }
         }
+
+        /// <summary>
+        /// Retrieves a job's information.
+        /// </summary>
+        /// <param name="jobId">The job id.</param>
+        /// <returns>
+        /// The <see cref="Job" />.
+        /// </returns>
+        public Job GetJobInfo(string jobId)
+        {
+            var startJobAsync = GetJobInfoAsync(jobId);
+            return startJobAsync.GetAwaiter().GetResult(); //To properly re-throw an exception: http://stackoverflow.com/questions/20170527/how-to-correctly-rethrow-an-exception-of-task-already-in-faulted-state
+        }
+
 
         /// <summary>
         /// Saves a screenshot to a local path.
@@ -221,6 +250,22 @@ namespace BrowserStack.API.Screenshots
         }
 
         /// <summary>
+        /// Saves a screenshot to a local path.
+        /// </summary>
+        /// <param name="screenshot">The screenshot.</param>
+        /// <param name="path">The path where the image will be saved to.</param>
+        /// <param name="filename">
+        /// The name of the file where the image will be saved to. The extension will be added automatically according to the image path. 
+        /// If no filename is supplied then the original filename from the BrowserStack url will be used.
+        /// </param>
+        /// <param name="overwrite">If set to true then the file will be overwritten, otherwise no attempt will be made to retrieve the file.</param>
+        public void SaveScreenshotToFile(Screenshot screenshot, string path, string filename = null, bool overwrite = false)
+        {
+            var saveScreenshotToFileAsync = SaveScreenshotToFileAsync(screenshot, path, filename, overwrite);
+            saveScreenshotToFileAsync.GetAwaiter().GetResult(); //To properly re-throw an exception: http://stackoverflow.com/questions/20170527/how-to-correctly-rethrow-an-exception-of-task-already-in-faulted-state
+        }
+
+        /// <summary>
         /// Saves a screenshot's thumbnail to a local path.
         /// </summary>
         /// <param name="screenshot">The screenshot.</param>
@@ -257,6 +302,22 @@ namespace BrowserStack.API.Screenshots
                     await this.ReadAsFileAsync(imageResponse.Content, fullPath, true);
                 }
             }
+        }
+
+        /// <summary>
+        /// Saves a screenshot's thumbnail to a local path.
+        /// </summary>
+        /// <param name="screenshot">The screenshot.</param>
+        /// <param name="path">The path where the image will be saved to.</param>
+        /// <param name="filename">
+        /// The name of the file where the image will be saved to. The extension will be added automatically according to the image path. 
+        /// If no filename is supplied then the original filename from the BrowserStack url will be used.
+        /// </param>
+        /// <param name="overwrite">If set to true then the file will be overwritten, otherwise no attempt will be made to retrieve the file.</param>
+        public void SaveThumbnailToFile(Screenshot screenshot, string path, string filename = null, bool overwrite = false)
+        {
+            var saveThumbnailToFileAsync = SaveThumbnailToFileAsync(screenshot, path, filename, overwrite);
+            saveThumbnailToFileAsync.GetAwaiter().GetResult(); //To properly re-throw an exception: http://stackoverflow.com/questions/20170527/how-to-correctly-rethrow-an-exception-of-task-already-in-faulted-state
         }
 
         /// <summary>
@@ -305,10 +366,27 @@ namespace BrowserStack.API.Screenshots
                         string.Format("Error while starting the job.\nResponse status is {0} ({1}).\nResponse is: {2}", response.ReasonPhrase, response.StatusCode, responseString));
                 }
 
-                var screenshotJob = await JsonConvert.DeserializeObjectAsync<ScreenshotJob>(responseString);
+                var screenshotJob = await Task.Factory.StartNew(()=> JsonConvert.DeserializeObject<ScreenshotJob>(responseString));
 
                 return MapToJob(screenshotJob);
             }
+        }
+
+        /// <summary>
+        /// Starts a BrowserStack screenshot job synchronously.
+        /// </summary>
+        /// <param name="url">The url for which screenshots are required.</param>
+        /// <param name="jobInfo">The job information that will be used to start the job.</param>
+        /// <param name="usingTunnel">set to <c>true</c> if the BrowserStack jobs need to run under a tunnel. The tunnel must have been initiated externally.</param>
+        /// <param name="browsers">The browsers that will be used to start the job.</param>
+        /// <returns>
+        /// The <see cref="Job" />.
+        /// </returns>
+        /// <exception cref="ApplicationException">Thrown when the call to the BrowserStack API results in an http code other than 200 (OK).</exception>
+        public Job StartJob(string url, Job.JobInfo jobInfo, bool usingTunnel = false, params Browser[] browsers)
+        {
+            var startJobAsync = StartJobAsync(url, jobInfo, usingTunnel, browsers);
+            return startJobAsync.GetAwaiter().GetResult(); //To properly re-throw an exception: http://stackoverflow.com/questions/20170527/how-to-correctly-rethrow-an-exception-of-task-already-in-faulted-state
         }
 
         #endregion

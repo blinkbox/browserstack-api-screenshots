@@ -101,7 +101,12 @@ namespace BrowserStack.API.Screenshots
             /// <summary>
             /// The job has been queued for execution.
             /// </summary>
-            Queue, 
+            Queue,
+
+            /// <summary>
+            /// All jobs has been queued for execution.
+            /// </summary>
+            Queued_all,
 
             /// <summary>
             /// The job has timed out.
@@ -119,15 +124,15 @@ namespace BrowserStack.API.Screenshots
         /// </summary>
         public enum WinResolutions
         {
-            /// <summary>
-            /// The r_1024 x 768.
-            /// </summary>
-            R_1024x768, 
-
-            /// <summary>
-            /// The r_1280 x 1024.
-            /// </summary>
-            R_1280x1024, 
+          R_1024x768,
+          R_1280x800,
+          R_1280x1024,
+          R_1366x768,
+          R_1440x900,
+          R_1680x1050,
+          R_1600x1200,
+          R_1920x1080,
+          R_1920x1200,
         }
 
         #endregion
@@ -183,7 +188,7 @@ namespace BrowserStack.API.Screenshots
             /// <summary>
             /// Gets or sets the orientation to be used for mobile browsers.
             /// </summary>
-            public Orientations? Orientation { get; set; }
+            public Orientations? Orientation { get; set; } 
 
             /// <summary>
             /// Gets or sets the resolution that will be used to capture screenshots on Mac browsers.
@@ -198,7 +203,7 @@ namespace BrowserStack.API.Screenshots
             /// <summary>
             /// Gets or sets the wait time (in seconds).
             /// </summary>
-            public int WaitTime { get; set; }
+            public int WaitTime { get; set; } = 10;
 
             /// <summary>
             /// Gets or sets the resolution that will be used to capture screenshots on Windows browsers.
